@@ -1,0 +1,192 @@
+
+<svg viewBox="0 0 860 680" xmlns="http://www.w3.org/2000/svg" style="width:100%;font-family:var(--font-sans)">
+<defs>
+  <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+    <polygon points="0 0, 8 3.5, 0 7" fill="#888780"/>
+  </marker>
+  <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+    <polygon points="0 0, 8 3.5, 0 7" fill="#378ADD"/>
+  </marker>
+  <marker id="arr-purple" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+    <polygon points="0 0, 8 3.5, 0 7" fill="#7F77DD"/>
+  </marker>
+  <marker id="arr-teal" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+    <polygon points="0 0, 8 3.5, 0 7" fill="#1D9E75"/>
+  </marker>
+</defs>
+
+<!-- ── BACKGROUND BANDS ── -->
+<!-- Training band -->
+<rect x="12" y="30" width="836" height="260" rx="10" fill="#E6F1FB" opacity="0.35"/>
+<text x="30" y="56" font-size="12" font-weight="500" fill="#185FA5">TRAINING PHASE</text>
+
+<!-- Inference band -->
+<rect x="12" y="310" width="836" height="260" rx="10" fill="#EEEDFE" opacity="0.35"/>
+<text x="30" y="336" font-size="12" font-weight="500" fill="#534AB7">INFERENCE PHASE</text>
+
+<!-- Output band -->
+<rect x="12" y="590" width="836" height="72" rx="10" fill="#E1F5EE" opacity="0.45"/>
+<text x="30" y="612" font-size="12" font-weight="500" fill="#0F6E56">OUTPUT</text>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- TRAINING PHASE NODES -->
+<!-- ══════════════════════════════════════════ -->
+
+<!-- EOTS -->
+<g>
+  <rect x="40" y="100" width="100" height="56" rx="6" fill="#B5D4F4" stroke="#378ADD" stroke-width="1"/>
+  <text x="90" y="124" text-anchor="middle" font-size="12" font-weight="500" fill="#0C447C">EOTS</text>
+  <text x="90" y="140" text-anchor="middle" font-size="10" fill="#185FA5">IR sensor</text>
+</g>
+
+<!-- Raw IR images -->
+<g>
+  <rect x="172" y="100" width="110" height="56" rx="6" fill="#B5D4F4" stroke="#378ADD" stroke-width="1"/>
+  <text x="227" y="121" text-anchor="middle" font-size="12" font-weight="500" fill="#0C447C">Raw IR</text>
+  <text x="227" y="136" text-anchor="middle" font-size="10" fill="#185FA5">images</text>
+  <text x="227" y="150" text-anchor="middle" font-size="10" fill="#185FA5">(6 classes)</text>
+</g>
+
+<!-- Arrow EOTS → Raw IR -->
+<line x1="141" y1="128" x2="170" y2="128" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+<!-- Diffusion model synthetic gen -->
+<g>
+  <rect x="172" y="68" width="110" height="24" rx="4" fill="#FAEEDA" stroke="#BA7517" stroke-width="0.8"/>
+  <text x="227" y="83" text-anchor="middle" font-size="10" fill="#633806">Diffusion model (synth.)</text>
+</g>
+<line x1="227" y1="92" x2="227" y2="99" stroke="#BA7517" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+
+<!-- Data Augmentation box -->
+<g>
+  <rect x="318" y="82" width="140" height="92" rx="6" fill="#E6F1FB" stroke="#378ADD" stroke-width="1"/>
+  <text x="388" y="103" text-anchor="middle" font-size="12" font-weight="500" fill="#0C447C">Data Augmentation</text>
+  <line x1="328" y1="110" x2="448" y2="110" stroke="#B5D4F4" stroke-width="0.8"/>
+  <text x="388" y="124" text-anchor="middle" font-size="10" fill="#185FA5">Geometric: crop, flip,</text>
+  <text x="388" y="137" text-anchor="middle" font-size="10" fill="#185FA5">rotate, affine, persp.</text>
+  <text x="388" y="150" text-anchor="middle" font-size="10" fill="#185FA5">Intensity: bright., noise</text>
+  <text x="388" y="163" text-anchor="middle" font-size="10" fill="#185FA5">p=0.50 per function</text>
+</g>
+<line x1="283" y1="128" x2="316" y2="128" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+<!-- ImageNet pretrained -->
+<g>
+  <rect x="318" y="196" width="140" height="52" rx="6" fill="#FAEEDA" stroke="#BA7517" stroke-width="1"/>
+  <text x="388" y="217" text-anchor="middle" font-size="12" font-weight="500" fill="#633806">ImageNet Weights</text>
+  <text x="388" y="234" text-anchor="middle" font-size="10" fill="#854F0B">Pre-trained (1,000 classes)</text>
+</g>
+
+<!-- 6 AI models block -->
+<g>
+  <rect x="500" y="68" width="152" height="192" rx="6" fill="#EEEDFE" stroke="#7F77DD" stroke-width="1"/>
+  <text x="576" y="90" text-anchor="middle" font-size="12" font-weight="500" fill="#3C3489">6 AI Models</text>
+  <text x="576" y="104" text-anchor="middle" font-size="9" fill="#534AB7">(Transfer Learning)</text>
+  <line x1="510" y1="110" x2="642" y2="110" stroke="#AFA9EC" stroke-width="0.8"/>
+  <!-- model rows -->
+  <rect x="512" y="116" width="128" height="19" rx="3" fill="#FFFFFF" stroke="#AFA9EC" stroke-width="0.5"/>
+  <text x="576" y="129" text-anchor="middle" font-size="10" fill="#3C3489">ResNet18</text>
+  <rect x="512" y="139" width="128" height="19" rx="3" fill="#FFFFFF" stroke="#AFA9EC" stroke-width="0.5"/>
+  <text x="576" y="152" text-anchor="middle" font-size="10" fill="#3C3489">VGG16</text>
+  <rect x="512" y="162" width="128" height="19" rx="3" fill="#FFFFFF" stroke="#AFA9EC" stroke-width="0.5"/>
+  <text x="576" y="175" text-anchor="middle" font-size="10" fill="#3C3489">ResNeXt50</text>
+  <rect x="512" y="185" width="128" height="19" rx="3" fill="#CCC8F6" stroke="#7F77DD" stroke-width="0.8"/>
+  <text x="576" y="198" text-anchor="middle" font-size="10" font-weight="500" fill="#26215C">ConvNeXt_tiny ★</text>
+  <rect x="512" y="208" width="128" height="19" rx="3" fill="#FFFFFF" stroke="#AFA9EC" stroke-width="0.5"/>
+  <text x="576" y="221" text-anchor="middle" font-size="10" fill="#3C3489">ViT_b_16</text>
+  <rect x="512" y="231" width="128" height="19" rx="3" fill="#FFFFFF" stroke="#AFA9EC" stroke-width="0.5"/>
+  <text x="576" y="244" text-anchor="middle" font-size="10" fill="#3C3489">Swin_T</text>
+</g>
+
+<!-- Arrows aug → models, imagenet → models -->
+<line x1="459" y1="128" x2="498" y2="128" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+<line x1="459" y1="222" x2="498" y2="222" stroke="#BA7517" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arr)"/>
+
+<!-- Trained models arrow down -->
+<line x1="576" y1="261" x2="576" y2="306" stroke="#7F77DD" stroke-width="1.5" marker-end="url(#arr-purple)"/>
+<text x="590" y="285" font-size="10" fill="#534AB7">trained weights</text>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- INFERENCE PHASE NODES -->
+<!-- ══════════════════════════════════════════ -->
+
+<!-- Test IR input -->
+<g>
+  <rect x="40" y="380" width="100" height="56" rx="6" fill="#B5D4F4" stroke="#378ADD" stroke-width="1"/>
+  <text x="90" y="403" text-anchor="middle" font-size="12" font-weight="500" fill="#0C447C">Test IR</text>
+  <text x="90" y="418" text-anchor="middle" font-size="10" fill="#185FA5">image input</text>
+  <text x="90" y="432" text-anchor="middle" font-size="10" fill="#185FA5">224×224</text>
+</g>
+
+<!-- 6 models inference -->
+<g>
+  <rect x="178" y="355" width="152" height="110" rx="6" fill="#EEEDFE" stroke="#7F77DD" stroke-width="1"/>
+  <text x="254" y="376" text-anchor="middle" font-size="12" font-weight="500" fill="#3C3489">6 Trained Models</text>
+  <line x1="188" y1="382" x2="320" y2="382" stroke="#AFA9EC" stroke-width="0.8"/>
+  <text x="254" y="397" text-anchor="middle" font-size="10" fill="#534AB7">Model #1 → score vector</text>
+  <text x="254" y="412" text-anchor="middle" font-size="10" fill="#534AB7">Model #2 → score vector</text>
+  <text x="254" y="427" text-anchor="middle" font-size="10" fill="#534AB7">…</text>
+  <text x="254" y="442" text-anchor="middle" font-size="10" fill="#534AB7">Model #6 → score vector</text>
+  <text x="254" y="456" text-anchor="middle" font-size="10" fill="#888">(softmax, 6 classes)</text>
+</g>
+<line x1="141" y1="408" x2="176" y2="408" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+<!-- Ensemble block -->
+<g>
+  <rect x="368" y="345" width="190" height="210" rx="6" fill="#EEEDFE" stroke="#7F77DD" stroke-width="1"/>
+  <text x="463" y="366" text-anchor="middle" font-size="12" font-weight="500" fill="#3C3489">Ensemble Methods</text>
+  <line x1="378" y1="373" x2="548" y2="373" stroke="#AFA9EC" stroke-width="0.8"/>
+
+  <!-- Geometric -->
+  <rect x="380" y="381" width="166" height="44" rx="4" fill="#FFFFFF" stroke="#AFA9EC" stroke-width="0.5"/>
+  <text x="463" y="398" text-anchor="middle" font-size="11" font-weight="500" fill="#3C3489">Geometric (TTA)</text>
+  <text x="463" y="412" text-anchor="middle" font-size="9" fill="#534AB7">8 variants per image → avg</text>
+  <text x="463" y="422" text-anchor="middle" font-size="9" fill="#854F0B">Low-hardware mode</text>
+
+  <!-- Voting -->
+  <rect x="380" y="432" width="166" height="44" rx="4" fill="#FFFFFF" stroke="#AFA9EC" stroke-width="0.5"/>
+  <text x="463" y="449" text-anchor="middle" font-size="11" font-weight="500" fill="#3C3489">Voting (Hard)</text>
+  <text x="463" y="463" text-anchor="middle" font-size="9" fill="#534AB7">Majority class from 6 models</text>
+  <text x="463" y="473" text-anchor="middle" font-size="9" fill="#854F0B">Fast parallel inference</text>
+
+  <!-- Averaging -->
+  <rect x="380" y="483" width="166" height="44" rx="4" fill="#CCC8F6" stroke="#7F77DD" stroke-width="0.8"/>
+  <text x="463" y="500" text-anchor="middle" font-size="11" font-weight="500" fill="#26215C">Averaging ★ Best</text>
+  <text x="463" y="514" text-anchor="middle" font-size="9" fill="#3C3489">Mean softmax across 6 models</text>
+  <text x="463" y="524" text-anchor="middle" font-size="9" fill="#854F0B">Acc. 0.92 — high-HW mode</text>
+
+  <text x="463" y="544" text-anchor="middle" font-size="9" fill="#888">Also tested: Geo+Voting, Geo+Avg</text>
+</g>
+<line x1="331" y1="408" x2="366" y2="408" stroke="#7F77DD" stroke-width="1.5" marker-end="url(#arr-purple)"/>
+
+<!-- Output -->
+<g>
+  <rect x="600" y="380" width="232" height="76" rx="6" fill="#9FE1CB" stroke="#1D9E75" stroke-width="1"/>
+  <text x="716" y="403" text-anchor="middle" font-size="12" font-weight="500" fill="#04342C">ATR Classification Output</text>
+  <line x1="610" y1="410" x2="822" y2="410" stroke="#5DCAA5" stroke-width="0.8"/>
+  <text x="716" y="425" text-anchor="middle" font-size="10" fill="#085041">F-16 / LYNX / MiG-19 / MiG-21</text>
+  <text x="716" y="440" text-anchor="middle" font-size="10" fill="#085041">PKG / PTG  →  CMS operator</text>
+  <text x="716" y="452" text-anchor="middle" font-size="10" fill="#085041">Overall accuracy: 92%</text>
+</g>
+<line x1="559" y1="450" x2="598" y2="418" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arr-teal)"/>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PERFORMANCE LEGEND (bottom) -->
+<!-- ══════════════════════════════════════════ -->
+<rect x="40" y="606" width="780" height="44" rx="6" fill="#FFFFFF" stroke="#9FE1CB" stroke-width="0.8"/>
+<text x="56" y="624" font-size="11" font-weight="500" fill="#0F6E56">Performance summary:</text>
+<text x="56" y="640" font-size="10" fill="#444">Best model alone: ConvNeXt 90.25%</text>
+<text x="260" y="640" font-size="10" fill="#444">Best ensemble: Averaging 92.00%</text>
+<text x="460" y="640" font-size="10" fill="#444">Hardest class: MiG-21 (94.17%)</text>
+<text x="660" y="640" font-size="10" fill="#444">Easiest class: LYNX (99.25%)</text>
+
+<!-- LEGEND KEY -->
+<rect x="40" y="576" width="10" height="10" rx="2" fill="#B5D4F4" stroke="#378ADD" stroke-width="0.8"/>
+<text x="55" y="585" font-size="10" fill="#555">Data / I/O</text>
+<rect x="140" y="576" width="10" height="10" rx="2" fill="#CCC8F6" stroke="#7F77DD" stroke-width="0.8"/>
+<text x="155" y="585" font-size="10" fill="#555">AI Models</text>
+<rect x="240" y="576" width="10" height="10" rx="2" fill="#9FE1CB" stroke="#1D9E75" stroke-width="0.8"/>
+<text x="255" y="585" font-size="10" fill="#555">Output</text>
+<rect x="340" y="576" width="10" height="10" rx="2" fill="#FAEEDA" stroke="#BA7517" stroke-width="0.8"/>
+<text x="355" y="585" font-size="10" fill="#555">External datasets</text>
+<text x="490" y="585" font-size="10" fill="#888">★ = best performer</text>
+</svg>
