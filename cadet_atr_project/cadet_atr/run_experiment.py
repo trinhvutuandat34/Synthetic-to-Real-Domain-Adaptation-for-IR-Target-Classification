@@ -185,6 +185,21 @@ def run_full_pipeline(args) -> None:
         save_path=f"{cfg.results_dir}tsne_after.png"
     )
 
+    # Phase 3d: Strategy 4 — DANN
+from adaptation.strategies import DANNTrainer
+
+dann = DANNTrainer(
+    backbone_checkpoint = ckpt_dr,        # start from domain-random checkpoint
+    synth_loader        = train_loader,
+    real_loader         = real_train_loader,
+    val_loader          = val_loader,
+)
+adapted_model = dann.train()              # saves → checkpoints/dann_best.pt
+
+gap_dann = measure_domain_gap(
+    adapted_model, synth_test_loader, real_test_loader,
+    save_path=f"{cfg.results_dir}confusion_dann.png"
+)
     # ── Phase 4: Final results chart ─────────────────────────
     print("\n[Phase 4] Generating results figures...")
     plot_gap_reduction(
