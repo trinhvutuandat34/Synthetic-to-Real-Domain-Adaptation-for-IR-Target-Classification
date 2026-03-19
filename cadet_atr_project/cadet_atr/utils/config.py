@@ -59,6 +59,8 @@ class Config:
     finetune_lr:        float = 1e-4   # head-only
     finetune_lr_full:   float = 5e-6   # full fine-tune (lower to avoid forgetting)
     finetune_freeze:    bool  = True   # True = head-only, False = full
+    dann_epochs:     int   = 20
+    dann_lambda_max: float = 1.0   # max λ reached at end of training
 
 
 # ── Singleton — import this everywhere ───────────────────────
