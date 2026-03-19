@@ -4,15 +4,15 @@
 #
 #   Phase 1 — Train baseline on synthetic data
 #   Phase 2 — Measure domain gap (baseline)
-#   Phase 3 — Apply adaptation strategies
+#   Phase 3 — Apply adaptation strategies (1–4)
 #   Phase 4 — Measure gap after each strategy
 #   Phase 5 — Generate all report figures
 #
 # Usage:
 #   python run_experiment.py --mode full
 #   python run_experiment.py --mode baseline_only
-#   python run_experiment.py --mode gap_only   --checkpoint checkpoints/baseline_best.pt
-#   python run_experiment.py --mode adapt      --checkpoint checkpoints/baseline_best.pt
+#   python run_experiment.py --mode gap_only  --checkpoint checkpoints/baseline_best.pt
+#   python run_experiment.py --mode adapt     --checkpoint checkpoints/baseline_best.pt
 # ─────────────────────────────────────────────────────────────
 
 import argparse
@@ -31,6 +31,7 @@ from adaptation.strategies import (
     build_reference_histogram,
     apply_histogram_matching,
     RealDataFinetuner,
+    DANNTrainer,               # FIX #2 — added to top-level import
 )
 from utils.visualise import (
     plot_tsne,
@@ -52,7 +53,7 @@ def run_full_pipeline(args) -> None:
     Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
     Path(cfg.results_dir).mkdir(parents=True, exist_ok=True)
 
-    results_log = []   # will hold gap numbers at each stage
+    results_log = []   # holds gap numbers at each stage → final chart
 
     # ── Phase 1: Train baseline ───────────────────────────────
     print("\n[Phase 1] Training synthetic baseline...")
@@ -63,38 +64,38 @@ def run_full_pipeline(args) -> None:
     )
     real_test_loader = make_real_loader(batch_size=cfg.batch_size)
 
-    trainer  = Trainer(model, run_name="baseline", aug_level="baseline")
+    trainer   = Trainer(model, run_name="baseline", aug_level="baseline")
     ckpt_path = trainer.fit(train_loader, val_loader)
 
     # ── Phase 2: Measure baseline gap ─────────────────────────
     print("\n[Phase 2] Measuring domain gap — baseline...")
     model.load_state_dict(torch.load(ckpt_path))
 
-    gap_results = measure_domain_gap(
+    gap_baseline = measure_domain_gap(
         model, synth_test_loader, real_test_loader,
         save_path=f"{cfg.results_dir}confusion_baseline.png"
     )
     results_log.append({
         "name":      "Synthetic baseline",
-        "synth_acc": gap_results["synth_acc"],
-        "real_acc":  gap_results["real_acc"],
+        "synth_acc": gap_baseline["synth_acc"],
+        "real_acc":  gap_baseline["real_acc"],
     })
     _save_results(results_log, f"{cfg.results_dir}results.json")
 
-    # t-SNE before adaptation
+    # t-SNE BEFORE any adaptation — 이성제 uses this as the "before" figure
     plot_tsne(
         model, synth_test_loader, real_test_loader,
         title="Feature space — BEFORE adaptation",
         save_path=f"{cfg.results_dir}tsne_before.png"
     )
 
-    # Intensity histograms
+    # Intensity histogram — shows distribution mismatch visually
     plot_intensity_histograms(
         synth_dir=cfg.synth_dir, real_dir=cfg.real_dir,
         save_path=f"{cfg.results_dir}intensity_histograms.png"
     )
 
-    # ── Phase 3a: Histogram matching ─────────────────────────
+    # ── Phase 3a: Strategy 1 — Histogram matching ─────────────
     print("\n[Phase 3a] Strategy 1 — Histogram matching...")
     reference = build_reference_histogram(cfg.real_dir)
     apply_histogram_matching(
@@ -103,21 +104,14 @@ def run_full_pipeline(args) -> None:
         reference     = reference,
     )
 
-    # Retrain on histogram-matched images
-    from data.dataset import SyntheticIRDataset
-    from data.augmentation import build_augmentation_pipeline
-
     model_hm = build_model()
     train_ldr_hm, val_ldr_hm, test_ldr_hm = make_loaders(
         dataset_type="synthetic", batch_size=cfg.batch_size
     )
-    # Swap to matched directory (quick override)
     train_ldr_hm.dataset.dataset.root = "data/synthetic_matched/"
 
-    trainer_hm = Trainer(
-        model_hm, run_name="histmatch", aug_level="baseline"
-    )
-    ckpt_hm = trainer_hm.fit(train_ldr_hm, val_ldr_hm)
+    trainer_hm = Trainer(model_hm, run_name="histmatch", aug_level="baseline")
+    ckpt_hm    = trainer_hm.fit(train_ldr_hm, val_ldr_hm)
     model_hm.load_state_dict(torch.load(ckpt_hm))
 
     gap_hm = measure_domain_gap(
@@ -131,9 +125,9 @@ def run_full_pipeline(args) -> None:
     })
     _save_results(results_log, f"{cfg.results_dir}results.json")
 
-    # ── Phase 3b: Domain randomisation ───────────────────────
+    # ── Phase 3b: Strategy 2 — Domain randomisation ───────────
     print("\n[Phase 3b] Strategy 2 — Domain randomisation...")
-    model_dr = build_model()
+    model_dr  = build_model()
     trainer_dr = Trainer(
         model_dr, run_name="domain_random", aug_level="extended"
     )
@@ -151,24 +145,24 @@ def run_full_pipeline(args) -> None:
     })
     _save_results(results_log, f"{cfg.results_dir}results.json")
 
-    # ── Phase 3c: Fine-tuning on real data ────────────────────
+    # ── Phase 3c: Strategy 3 — Fine-tuning on real data ───────
     print("\n[Phase 3c] Strategy 3 — Fine-tuning on real data...")
-    real_train_loader, real_val_loader, real_test_loader2 = make_loaders(
+    real_train_loader, real_val_loader, _ = make_loaders(
         dataset_type="real", batch_size=cfg.batch_size
     )
 
-    # Start from the domain-randomisation checkpoint (best so far)
+    # Start from domain-randomisation checkpoint (best so far before DANN)
     finetuner = RealDataFinetuner(
-        model          = build_model(),
+        model           = build_model(),
         checkpoint_path = ckpt_dr,
         save_path       = f"{cfg.checkpoint_dir}finetuned_best.pt",
     )
-    adapted_model = finetuner.finetune(
+    model_ft = finetuner.finetune(
         real_train_loader, real_val_loader, mode="head_only"
     )
 
     gap_ft = measure_domain_gap(
-        adapted_model, synth_test_loader, real_test_loader,
+        model_ft, synth_test_loader, real_test_loader,
         save_path=f"{cfg.results_dir}confusion_finetuned.png"
     )
     results_log.append({
@@ -178,29 +172,41 @@ def run_full_pipeline(args) -> None:
     })
     _save_results(results_log, f"{cfg.results_dir}results.json")
 
-    # t-SNE after adaptation
+    # ── Phase 3d: Strategy 4 — DANN ───────────────────────────
+    # FIX #1 — correctly indented inside run_full_pipeline()
+    print("\n[Phase 3d] Strategy 4 — DANN (adversarial domain adaptation)...")
+    dann = DANNTrainer(
+        backbone_checkpoint = ckpt_dr,          # start from domain-random ckpt
+        synth_loader        = train_loader,
+        real_loader         = real_train_loader,
+        val_loader          = val_loader,
+        save_path           = f"{cfg.checkpoint_dir}dann_best.pt",
+        wandb_run_name      = "dann_strategy4",
+    )
+    model_dann = dann.train()                   # renamed to avoid overwriting model_ft
+
+    gap_dann = measure_domain_gap(
+        model_dann, synth_test_loader, real_test_loader,
+        save_path=f"{cfg.results_dir}confusion_dann.png"
+    )
+    # FIX #3 — append DANN results so they appear in summary + results.json
+    results_log.append({
+        "name":      "+ DANN (adversarial)",
+        "synth_acc": gap_dann["synth_acc"],
+        "real_acc":  gap_dann["real_acc"],
+    })
+    _save_results(results_log, f"{cfg.results_dir}results.json")
+
+    # FIX #4 — t-SNE AFTER DANN specifically (key figure for 이성제's report)
+    # This shows adversarial feature alignment in the embedding space.
     plot_tsne(
-        adapted_model, synth_test_loader, real_test_loader,
-        title="Feature space — AFTER adaptation",
-        save_path=f"{cfg.results_dir}tsne_after.png"
+        model_dann, synth_test_loader, real_test_loader,
+        title="Feature space — AFTER DANN adaptation",
+        save_path=f"{cfg.results_dir}tsne_after_dann.png"
     )
 
-    # Phase 3d: Strategy 4 — DANN
-from adaptation.strategies import DANNTrainer
-
-dann = DANNTrainer(
-    backbone_checkpoint = ckpt_dr,        # start from domain-random checkpoint
-    synth_loader        = train_loader,
-    real_loader         = real_train_loader,
-    val_loader          = val_loader,
-)
-adapted_model = dann.train()              # saves → checkpoints/dann_best.pt
-
-gap_dann = measure_domain_gap(
-    adapted_model, synth_test_loader, real_test_loader,
-    save_path=f"{cfg.results_dir}confusion_dann.png"
-)
-    # ── Phase 4: Final results chart ─────────────────────────
+    # ── Phase 4: Final results chart ──────────────────────────
+    # All 4 strategies are now in results_log — chart shows full gap progression
     print("\n[Phase 4] Generating results figures...")
     plot_gap_reduction(
         results_log,
@@ -216,7 +222,7 @@ def run_baseline_only(args) -> None:
     model = build_model()
     train_loader, val_loader, _ = make_loaders("synthetic", cfg.batch_size)
     trainer = Trainer(model, run_name="baseline", aug_level="baseline")
-    ckpt = trainer.fit(train_loader, val_loader)
+    ckpt    = trainer.fit(train_loader, val_loader)
     print(f"\nBaseline checkpoint saved: {ckpt}")
     print("Next: run with --mode gap_only --checkpoint", ckpt)
 
@@ -252,17 +258,19 @@ def _print_final_summary(results: list) -> None:
     print("\n" + "=" * 60)
     print("  FINAL RESULTS SUMMARY")
     print("=" * 60)
-    print(f"  {'Experiment':<28} {'Synth':>7} {'Real':>7} {'Gap':>7}")
-    print("  " + "─" * 54)
+    print(f"  {'Experiment':<30} {'Synth':>7} {'Real':>7} {'Gap':>7}")
+    print("  " + "─" * 56)
     for r in results:
-        s = f"{r['synth_acc']:.1%}" if r['synth_acc'] else "—"
+        s  = f"{r['synth_acc']:.1%}" if r['synth_acc'] else "—"
         re = f"{r['real_acc']:.1%}"  if r['real_acc']  else "—"
-        g  = f"{(r['synth_acc'] - r['real_acc']):.1%}" if (
-            r['synth_acc'] and r['real_acc']) else "—"
-        print(f"  {r['name']:<28} {s:>7} {re:>7} {g:>7}")
+        g  = (
+            f"{(r['synth_acc'] - r['real_acc']):.1%}"
+            if (r['synth_acc'] and r['real_acc']) else "—"
+        )
+        print(f"  {r['name']:<30} {s:>7} {re:>7} {g:>7}")
     print("=" * 60)
-    print(f"\n  All figures saved to: {cfg.results_dir}")
-    print(f"  All checkpoints in:   {cfg.checkpoint_dir}")
+    print(f"\n  All figures saved to : {cfg.results_dir}")
+    print(f"  All checkpoints in   : {cfg.checkpoint_dir}")
 
 
 # ── CLI ───────────────────────────────────────────────────────
