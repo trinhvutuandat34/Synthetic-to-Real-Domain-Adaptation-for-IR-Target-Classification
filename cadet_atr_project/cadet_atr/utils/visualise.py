@@ -474,3 +474,242 @@ def _extract_features(
         torch.cat(features, dim=0).float().numpy(),
         np.array(labels),
     )
+
+# ══════════════════════════════════════════════════════════════
+# 3. PLOT_TSNE
+# ══════════════════════════════════════════════════════════════
+
+def plot_tsne(
+    model:        nn.Module,
+    synth_loader: DataLoader,
+    real_loader:  DataLoader,
+    title:        str = "",
+    save_path:    Optional[str] = None,
+    device:       str = "cuda",
+) -> None:
+    """
+    2-D t-SNE of penultimate-layer features — shows whether the ATR model
+    has learned domain-invariant representations before/after adaptation.
+    """
+    # Import here so the module-level import list stays unchanged,
+    # which matters because sklearn is a heavy import.
+    from sklearn.manifold import TSNE
+
+    print("[t-SNE] Extracting features from synthetic loader...")
+    synth_feats, synth_labels = _extract_features(model, synth_loader, device)
+
+    print("[t-SNE] Extracting features from real loader...")
+    real_feats,  real_labels  = _extract_features(model, real_loader,  device)
+
+    # Build a single matrix for t-SNE.
+    # t-SNE's embedding is only meaningful within a single run,
+    # so both domains MUST be embedded together.
+    all_feats   = np.concatenate([synth_feats, real_feats], axis=0)   # (N_s+N_r, D)
+    all_labels  = np.concatenate([synth_labels, real_labels], axis=0) # class labels
+    domain_ids  = np.array(
+        [0] * len(synth_labels) + [1] * len(real_labels)
+    )  # 0 = synthetic, 1 = real
+
+    print(f"[t-SNE] Running TSNE on {len(all_feats)} feature vectors "
+          f"(dim={all_feats.shape[1]})...")
+    tsne    = TSNE(n_components=2, random_state=42, perplexity=30, n_iter=1000)
+    embedded = tsne.fit_transform(all_feats)  # (N, 2)
+
+    # Split back into synth / real using the domain_ids we built above
+    synth_emb = embedded[domain_ids == 0]
+    real_emb  = embedded[domain_ids == 1]
+    synth_cls = all_labels[domain_ids == 0]
+    real_cls  = all_labels[domain_ids == 1]
+
+    class_names = cfg.class_names
+    n_classes   = len(class_names)
+
+    # Use a colormap with enough distinct colours for 6 classes
+    cmap   = plt.cm.get_cmap("tab10", n_classes)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    for ax, emb, cls_arr, domain_label in [
+        (axes[0], synth_emb, synth_cls, "Synthetic"),
+        (axes[1], real_emb,  real_cls,  "Real"),
+    ]:
+        for c_idx in range(n_classes):
+            mask = cls_arr == c_idx
+            if mask.sum() == 0:
+                continue
+            cls_name = class_names[c_idx] if c_idx < len(class_names) else str(c_idx)
+            ax.scatter(
+                emb[mask, 0], emb[mask, 1],
+                c=[cmap(c_idx)], label=cls_name,
+                s=18, alpha=0.7, linewidths=0,
+            )
+        ax.set_title(f"{domain_label} features")
+        ax.legend(fontsize=8, markerscale=1.5, loc="best")
+        ax.set_xlabel("t-SNE dim 1")
+        ax.set_ylabel("t-SNE dim 2")
+        ax.grid(True, linewidth=0.3, alpha=0.5)
+
+    fig.suptitle(title or "Feature Space (t-SNE)", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"[t-SNE] Saved → {save_path}")
+    plt.show()
+
+
+# ══════════════════════════════════════════════════════════════
+# 4. PLOT_INTENSITY_HISTOGRAMS
+# ══════════════════════════════════════════════════════════════
+
+def plot_intensity_histograms(
+    synth_dir: str,
+    real_dir:  str,
+    save_path: Optional[str] = None,
+) -> None:
+    """
+    Pixel-intensity histogram comparison — visualises the low-level domain
+    gap between Stable Diffusion synthetic IR images and real FLIR imagery.
+    """
+    def _collect_pixels(root: str, max_images: int = 200) -> np.ndarray:
+        """Walk all class subdirectories and collect flattened pixel values."""
+        all_paths = []
+        # Collect PNG and JPG from every class subfolder
+        for ext in ("*.png", "*.jpg", "*.jpeg"):
+            all_paths.extend(
+                glob.glob(os.path.join(root, "**", ext), recursive=True)
+            )
+
+        if len(all_paths) == 0:
+            print(f"[Histogram] Warning: no images found under {root}")
+            return np.array([128.0])  # fallback so the plot doesn't crash
+
+        # Randomly subsample to keep memory reasonable
+        random.shuffle(all_paths)
+        selected = all_paths[:max_images]
+
+        pixels = []
+        for path in selected:
+            try:
+                arr = np.array(Image.open(path).convert("L"), dtype=np.float32)
+                pixels.append(arr.ravel())  # flatten spatial dims
+            except Exception:
+                pass  # skip corrupt files silently
+
+        return np.concatenate(pixels) if pixels else np.array([128.0])
+
+    print("[Histogram] Collecting synthetic pixel values...")
+    synth_pixels = _collect_pixels(synth_dir)
+    print("[Histogram] Collecting real pixel values...")
+    real_pixels  = _collect_pixels(real_dir)
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    # Plot both distributions on the same axes for easy visual comparison
+    ax.hist(
+        synth_pixels, bins=128, range=(0, 255),
+        color="steelblue", alpha=0.65, density=True, label="Synthetic (SD)"
+    )
+    ax.hist(
+        real_pixels, bins=128, range=(0, 255),
+        color="darkorange", alpha=0.65, density=True, label="Real (FLIR)"
+    )
+
+    ax.set_xlabel("Pixel Intensity", fontsize=11)
+    ax.set_ylabel("Density", fontsize=11)
+    ax.set_title("Pixel Intensity Distribution: Synthetic vs Real", fontsize=12)
+    ax.legend(fontsize=10)
+    ax.grid(True, linewidth=0.3, alpha=0.5)
+
+    # Annotate the means — useful for your report ("real images are ~X brighter")
+    ax.axvline(synth_pixels.mean(), color="steelblue",   linestyle="--",
+               linewidth=1.2, label=f"Synth mean={synth_pixels.mean():.1f}")
+    ax.axvline(real_pixels.mean(),  color="darkorange",  linestyle="--",
+               linewidth=1.2, label=f"Real  mean={real_pixels.mean():.1f}")
+    ax.legend(fontsize=9)
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"[Histogram] Saved → {save_path}")
+    plt.show()
+
+
+# ══════════════════════════════════════════════════════════════
+# 5. PLOT_GAP_REDUCTION
+# ══════════════════════════════════════════════════════════════
+
+def plot_gap_reduction(
+    results:   list,
+    save_path: Optional[str] = None,
+) -> None:
+    """
+    Grouped bar chart of synthetic vs real accuracy for each adaptation
+    strategy — the headline results figure for the ATR cadet report.
+
+    Each element of `results` must be a dict with keys:
+        "name"      : str            — experiment label
+        "synth_acc" : float or None  — accuracy on synthetic test set
+        "real_acc"  : float or None  — accuracy on real test set
+    """
+    n = len(results)
+    if n == 0:
+        print("[GapReduction] Empty results list — nothing to plot.")
+        return
+
+    names      = [r["name"]      for r in results]
+    synth_accs = [r.get("synth_acc") or 0.0 for r in results]
+    real_accs  = [r.get("real_acc")  or 0.0 for r in results]
+
+    x     = np.arange(n)
+    width = 0.35   # width of each bar in the pair
+
+    fig, ax = plt.subplots(figsize=(max(8, n * 1.8), 6))
+
+    bars_s = ax.bar(x - width / 2, synth_accs, width,
+                    label="Synthetic acc", color="steelblue",  alpha=0.85)
+    bars_r = ax.bar(x + width / 2, real_accs,  width,
+                    label="Real acc",      color="darkorange", alpha=0.85)
+
+    def _label_bars(bars, accs, source_results, key):
+        """Add numeric labels above each bar; skip None entries."""
+        for bar, orig_val in zip(bars, [r.get(key) for r in source_results]):
+            if orig_val is None:
+                continue  # bar is at 0 due to the `or 0.0` above; don't label it
+            height = bar.get_height()
+            ax.annotate(
+                f"{height:.1%}",
+                xy=(bar.get_x() + bar.get_width() / 2, height),
+                xytext=(0, 4),  # 4pt vertical offset
+                textcoords="offset points",
+                ha="center", va="bottom", fontsize=8.5,
+            )
+
+    _label_bars(bars_s, synth_accs, results, "synth_acc")
+    _label_bars(bars_r, real_accs,  results, "real_acc")
+
+    # Draw the gap as a thin red line between synth and real bars for each exp
+    for i, r in enumerate(results):
+        s = r.get("synth_acc")
+        re = r.get("real_acc")
+        if s is not None and re is not None:
+            ax.plot(
+                [x[i] - width / 2, x[i] + width / 2], [s, re],
+                color="crimson", linewidth=1.2, linestyle="--", alpha=0.7,
+            )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, rotation=20, ha="right", fontsize=9)
+    ax.set_ylim(0.0, 1.08)  # leave headroom above 100% for labels
+    ax.set_ylabel("Accuracy", fontsize=11)
+    ax.set_title("Domain Gap Reduction Across Strategies", fontsize=12, fontweight="bold")
+    ax.legend(fontsize=10)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
+    ax.grid(axis="y", linewidth=0.4, alpha=0.5)
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"[GapReduction] Saved → {save_path}")
+    plt.show()
