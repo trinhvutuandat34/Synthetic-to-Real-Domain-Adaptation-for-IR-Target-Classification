@@ -91,33 +91,75 @@ def run_adapt_strategy(args) -> None:
    real_test_loader = make_real_loader(batch_size=cfg.batch_size)
 
     # ── Strategy 1: Histogram matching ───────────────────────
-    if strategy == "histogram":
-        print("\n[Adapt] Strategy 1 — Histogram matching")
-        if not args.checkpoint:
-            raise ValueError("--checkpoint required for histogram strategy")
+if strategy == "histogram":
+    print("\n[Adapt] Strategy 1 — Histogram matching")
+    if not args.checkpoint:
+        raise ValueError("--checkpoint required for histogram strategy")
 
-        reference = build_reference_histogram(cfg.real_dir)
-        apply_histogram_matching(
-            synth_img_dir = cfg.synth_dir,
-            output_dir    = "data/synthetic_matched/",
-            reference     = reference,
-        )
+    reference = build_reference_histogram(cfg.real_dir)
+    apply_histogram_matching(
+        synth_img_dir = cfg.synth_dir,
+        output_dir    = "data/synthetic_matched/",
+        reference     = reference,
+    )
 
-        model = build_model()
-        train_ldr, val_ldr, test_ldr = make_loaders("synthetic", cfg.batch_size)
-        # Redirect root to matched images
-        train_ldr.dataset.dataset.root = "data/synthetic_matched/"
+    # ── FIX: construct fresh DataLoaders from the matched directory ──
+    # ImageFolder.samples is built once in __init__ — mutating .root
+    # after construction has no effect on which files are served.
+    # We must instantiate new dataset objects pointing at the matched dir.
+    from data.dataset import SyntheticIRDataset, get_train_transform, get_base_transform
+    from torch.utils.data import DataLoader, random_split, Subset
+    import torch as _torch
 
-        trainer = Trainer(model, run_name="histmatch", aug_level="baseline")
-        ckpt    = trainer.fit(train_ldr, val_ldr)
-        model.load_state_dict(torch.load(ckpt))
+    # Two dataset objects: one with train-time augmentation, one without.
+    # This mirrors the pattern in make_loaders() — val/test never get
+    # random flips or crops, which would artificially inflate those metrics.
+    matched_ds      = SyntheticIRDataset(
+        root      = "data/synthetic_matched/",
+        transform = get_train_transform(cfg.input_size),
+    )
+    matched_ds_eval = SyntheticIRDataset(
+        root      = "data/synthetic_matched/",
+        transform = get_base_transform(cfg.input_size),
+    )
 
-        gap = measure_domain_gap(
-            model, test_ldr, real_test_loader,
-            save_path=f"{cfg.results_dir}confusion_histmatch.png"
-        )
-        print(f"\nHistogram matching — real acc: {gap['real_acc']:.1%}, "
-              f"gap: {gap['domain_gap']:.1%}")
+    n       = len(matched_ds)
+    n_train = int(cfg.train_frac * n)
+    n_val   = int(cfg.val_frac   * n)
+    n_test  = n - n_train - n_val   # absorbs any rounding remainder
+
+    # Seeded generator → same train/val/test boundaries as every
+    # other experiment, which is essential for a fair comparison table.
+    gen = _torch.Generator().manual_seed(cfg.seed)
+    train_idx, val_idx, test_idx = random_split(
+        range(n), [n_train, n_val, n_test], generator=gen
+    )
+
+    train_ldr = DataLoader(
+        Subset(matched_ds,      list(train_idx)),
+        batch_size=cfg.batch_size, shuffle=True,  num_workers=2,
+    )
+    val_ldr = DataLoader(
+        Subset(matched_ds_eval, list(val_idx)),
+        batch_size=cfg.batch_size, shuffle=False, num_workers=2,
+    )
+    test_ldr = DataLoader(
+        Subset(matched_ds_eval, list(test_idx)),
+        batch_size=cfg.batch_size, shuffle=False, num_workers=2,
+    )
+    # ── end fix ─────────────────────────────────────────────────────
+
+    model = build_model()
+    trainer = Trainer(model, run_name="histmatch", aug_level="baseline")
+    ckpt    = trainer.fit(train_ldr, val_ldr)
+    model.load_state_dict(torch.load(ckpt))
+
+    gap = measure_domain_gap(
+        model, test_ldr, real_test_loader,
+        save_path=f"{cfg.results_dir}confusion_histmatch.png"
+    )
+    print(f"\nHistogram matching — real acc: {gap['real_acc']:.1%}, "
+          f"gap: {gap['domain_gap']:.1%}")
 
     # ── Strategy 2: Domain randomisation ─────────────────────
     elif strategy == "domain_random":
