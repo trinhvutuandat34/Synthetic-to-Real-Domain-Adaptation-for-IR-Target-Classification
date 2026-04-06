@@ -51,7 +51,6 @@ class Config:
     # ── Model ─────────────────────────────────────────────────
     model_name:  str  = "convnext_tiny"   # best single model in the paper
     pretrained:  bool = True
-    num_classes: int  = 6                 # UPDATED: was 3 in original
     input_size:  int  = 224
 
     # ── Training ──────────────────────────────────────────────
