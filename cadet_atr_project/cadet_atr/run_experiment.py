@@ -88,7 +88,7 @@ def run_adapt_strategy(args) -> None:
     train_loader, val_loader, synth_test_loader = make_loaders(
         "synthetic", cfg.batch_size
     )
-    real_test_loader = make_real_loader(cfg.batch_size)
+   real_test_loader = make_real_loader(batch_size=cfg.batch_size)
 
     # ── Strategy 1: Histogram matching ───────────────────────
     if strategy == "histogram":
@@ -213,7 +213,7 @@ def run_full_pipeline(args) -> None:
     print("\n[Phase 1] Training synthetic baseline...")
     model = build_model(model_name=cfg.model_name, num_classes=cfg.num_classes)
     train_loader, val_loader, synth_test_loader = make_loaders("synthetic", cfg.batch_size)
-    real_test_loader = make_real_loader(cfg.batch_size)
+    real_test_loader = make_real_loader(batch_size=cfg.batch_size)
 
     trainer   = Trainer(model, run_name="baseline", aug_level="baseline")
     ckpt_path = trainer.fit(train_loader, val_loader)
@@ -282,7 +282,7 @@ def run_gap_only(args) -> None:
     model = build_model()
     model.load_state_dict(torch.load(args.checkpoint))
     _, _, synth_test_loader = make_loaders("synthetic", cfg.batch_size)
-    real_loader = make_real_loader(cfg.batch_size)
+    real_loader = make_real_loader(batch_size=cfg.batch_size)
     measure_domain_gap(
         model, synth_test_loader, real_loader,
         save_path=f"{cfg.results_dir}confusion_gap.png"
