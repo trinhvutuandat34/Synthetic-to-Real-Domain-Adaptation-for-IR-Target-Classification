@@ -34,7 +34,7 @@ print("  ✓ GRL backward pass OK")
 # ── Test 2: Grad-CAM hook on plain ConvNeXt ──────────────────
 print("\n[2] GradCAM on ConvNeXt...")
 from models.convnext import build_model
-from utils.visualise_fixed import GradCAM   # your updated visualise.py
+from utils.visualise import GradCAM   # fixed: was utils.visualise_fixed
 
 model_cx = build_model("convnext_tiny", num_classes=6)
 model_cx.eval()
@@ -63,7 +63,7 @@ print(f"  ✓ DANNModel CAM shape: {cam_d.shape}, pred class: {pred_d}")
 # ── Test 4: Fixed _extract_features hook on DANNModel ─────────
 print("\n[4] _extract_features hook on DANNModel...")
 from torch.utils.data import DataLoader, TensorDataset
-from utils.visualise_fixed import _extract_features
+from utils.visualise import _extract_features   # fixed: was utils.visualise_fixed
 
 model_dann.eval()
 # Fake loader: 8 images, 3 classes
